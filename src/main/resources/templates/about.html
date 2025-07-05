@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${title}">关于系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+        }
+        
+        .section h2 {
+            color: #333;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+        
+        .section p {
+            line-height: 1.6;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        
+        .feature-list {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .feature-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .feature-list li:before {
+            content: "✓";
+            color: #28a745;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        
+        .tech-stack {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .tech-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .back-button {
+            display: inline-block;
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 20px;
+            transition: background 0.3s;
+        }
+        
+        .back-button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 th:text="${title}">关于智能客服系统</h1>
+            <p>基于Spring Alibaba AI框架的智能客服解决方案</p>
+        </div>
+        
+        <div class="content">
+            <div class="section">
+                <h2>系统简介</h2>
+                <p>本系统是基于Spring Alibaba AI框架开发的智能客服系统，集成了阿里云通义千问大语言模型，为用户提供智能化的客服服务体验。</p>
+                <p>系统采用现代化的微服务架构，具有高可用性、可扩展性和易维护性的特点。</p>
+            </div>
+            
+            <div class="section">
+                <h2>主要功能</h2>
+                <ul class="feature-list">
+                    <li>智能对话：基于大语言模型的自然语言理解和生成</li>
+                    <li>会话管理：支持多用户并发会话，自动会话超时管理</li>
+                    <li>消息持久化：完整的对话历史记录和查询功能</li>
+                    <li>RESTful API：标准化的API接口，支持多种客户端接入</li>
+                    <li>Web界面：友好的用户交互界面</li>
+                    <li>系统监控：健康检查和会话清理功能</li>
+                </ul>
+            </div>
+            
+            <div class="section">
+                <h2>技术栈</h2>
+                <div class="tech-stack">
+                    <div class="tech-item">
+                        <strong>Spring Boot 3.2</strong>
+                        <p>应用框架</p>
+                    </div>
+                    <div class="tech-item">
+                        <strong>Spring Alibaba AI</strong>
+                        <p>AI集成框架</p>
+                    </div>
+                    <div class="tech-item">
+                        <strong>通义千问</strong>
+                        <p>大语言模型</p>
+                    </div>
+                    <div class="tech-item">
+                        <strong>Spring Data JPA</strong>
+                        <p>数据持久化</p>
+                    </div>
+                    <div class="tech-item">
+                        <strong>H2 Database</strong>
+                        <p>内存数据库</p>
+                    </div>
+                    <div class="tech-item">
+                        <strong>Thymeleaf</strong>
+                        <p>模板引擎</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2>系统架构</h2>
+                <p>系统采用分层架构设计：</p>
+                <ul class="feature-list">
+                    <li>表现层：Web控制器和RESTful API</li>
+                    <li>业务层：聊天服务和会话管理</li>
+                    <li>数据层：JPA实体和Repository</li>
+                    <li>集成层：Spring Alibaba AI和通义千问</li>
+                </ul>
+            </div>
+            
+            <div class="section">
+                <h2>使用说明</h2>
+                <p>1. 在主页面输入您的问题</p>
+                <p>2. 系统会自动创建会话并调用AI模型生成回答</p>
+                <p>3. 支持连续对话，系统会维护对话上下文</p>
+                <p>4. 会话在30分钟无活动后自动过期</p>
+            </div>
+            
+            <a href="/" class="back-button">返回主页</a>
+        </div>
+    </div>
+</body>
+</html>
