@@ -1,0 +1,98 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: spring-alibaba-ai-customer-service
+
+  # 数据库配置 (H2内存数据库用于演示)
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  # JPA配置
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  # H2控制台配置
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  # Thymeleaf配置
+  thymeleaf:
+    cache: false
+    encoding: UTF-8
+    mode: HTML
+    prefix: classpath:/templates/
+    suffix: .html
+
+  # Spring AI Alibaba配置
+  ai:
+    dashscope:
+      # DashScope API配置
+      api-key: ${DASHSCOPE_API_KEY:your-api-key-here}
+
+# 应用自定义配置
+customer-service:
+  # 默认欢迎消息
+  welcome-message: "您好！我是智能客服助手，有什么可以帮助您的吗？"
+  # 系统提示词
+  system-prompt: |
+    你是一个专业的客服助手，请遵循以下规则：
+    1. 保持友好和专业的语调
+    2. 尽可能提供准确和有用的信息
+    3. 如果不确定答案，请诚实地说明
+    4. 对于复杂问题，建议用户联系人工客服
+    5. 回答要简洁明了，避免过于冗长
+  # 会话超时时间（分钟）
+  session-timeout: 30
+
+# RAG功能配置
+rag:
+  enabled: true # 是否启用RAG功能
+
+  # 文档分块配置
+  chunk:
+    size: 1000 # 默认分块大小（字符数）
+    overlap: 200 # 分块重叠大小（字符数）
+
+  # 向量化配置
+  embedding:
+    enabled: true # 是否启用向量化
+    batch-size: 10 # 批处理大小
+
+  # 检索配置
+  retrieval:
+    max-chunks: 5 # 最大检索分块数
+    similarity-threshold: 0.7 # 相似度阈值
+
+  # 上下文配置
+  context:
+    max-length: 2000 # 最大上下文长度
+    include-metadata: true # 是否包含元数据
+    deduplicate: true # 是否去重
+
+  # 搜索配置
+  search:
+    similarity-threshold: 0.7 # 搜索相似度阈值
+    max-results: 10 # 最大搜索结果数
+    enable-reranking: true # 是否启用重排序
+
+# 日志配置
+logging:
+  level:
+    com.example.customerservice: DEBUG
+    org.springframework.ai: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
