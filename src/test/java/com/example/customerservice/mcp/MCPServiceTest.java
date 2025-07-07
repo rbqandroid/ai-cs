@@ -71,7 +71,7 @@ class MCPServiceTest {
         
         // 验证返回错误响应
         assertEquals(MCPMessageType.ERROR, response.getType());
-        assertTrue(response.getMessage().contains("No handler found"));
+        assertTrue(response.getMetadata().values().contains("No handler found"));
     }
     
     @Test
@@ -97,7 +97,7 @@ class MCPServiceTest {
         
         // 验证返回过期错误
         assertEquals(MCPMessageType.ERROR, response.getType());
-        assertTrue(response.getMessage().contains("expired"));
+        assertTrue(response.getMetadata().values().contains("expired"));
     }
     
     @Test
@@ -119,7 +119,7 @@ class MCPServiceTest {
         
         // 验证返回错误响应
         assertEquals(MCPMessageType.ERROR, response.getType());
-        assertTrue(response.getMessage().contains("Internal error"));
+        assertTrue(response.getMetadata().values().contains("Internal error"));
     }
     
     @Test

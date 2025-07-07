@@ -104,9 +104,16 @@ public class CustomerServiceAgent extends AbstractAgent {
     private String handleCustomerInquiry(String message, MCPContext context) {
         // 设置当前意图
         context.setCurrentIntent("customer_inquiry");
-        
+
+        // 创建聊天请求对象
+        com.example.customerservice.dto.ChatRequest request = new com.example.customerservice.dto.ChatRequest();
+        request.setMessage(message);
+        request.setSessionId(context.getSessionId());
+        request.setUserId(context.getUserId());
+
         // 调用聊天服务处理
-        return chatService.processMessage(message, context.getSessionId(), context.getUserId());
+        com.example.customerservice.dto.ChatResponse response = chatService.processMessage(request);
+        return response.isSuccess() ? response.getMessage() : "处理请求时发生错误";
     }
     
     /**
@@ -114,12 +121,20 @@ public class CustomerServiceAgent extends AbstractAgent {
      */
     private String handleServiceRequest(String message, MCPContext context) {
         context.setCurrentIntent("service_request");
-        
+
         // 分析服务请求类型
         String serviceType = analyzeServiceType(message);
         context.setEntity("serviceType", serviceType);
-        
-        return chatService.processMessage(message, context.getSessionId(), context.getUserId());
+
+        // 创建聊天请求对象
+        com.example.customerservice.dto.ChatRequest request = new com.example.customerservice.dto.ChatRequest();
+        request.setMessage(message);
+        request.setSessionId(context.getSessionId());
+        request.setUserId(context.getUserId());
+
+        // 调用聊天服务处理
+        com.example.customerservice.dto.ChatResponse response = chatService.processMessage(request);
+        return response.isSuccess() ? response.getMessage() : "处理服务请求时发生错误";
     }
     
     /**
@@ -128,13 +143,22 @@ public class CustomerServiceAgent extends AbstractAgent {
     private String handleComplaint(String message, MCPContext context) {
         context.setCurrentIntent("complaint_handling");
         context.setEntity("priority", "high"); // 投诉设为高优先级
-        
+
         // 记录投诉信息
         context.setVariable("complaintReceived", true);
         context.setVariable("complaintTime", System.currentTimeMillis());
-        
-        return "我非常理解您的困扰，我会认真处理您的投诉。" + 
-               chatService.processMessage(message, context.getSessionId(), context.getUserId());
+
+        // 创建聊天请求对象
+        com.example.customerservice.dto.ChatRequest request = new com.example.customerservice.dto.ChatRequest();
+        request.setMessage(message);
+        request.setSessionId(context.getSessionId());
+        request.setUserId(context.getUserId());
+
+        // 调用聊天服务处理
+        com.example.customerservice.dto.ChatResponse response = chatService.processMessage(request);
+        String aiResponse = response.isSuccess() ? response.getMessage() : "处理投诉时发生错误";
+
+        return "我非常理解您的困扰，我会认真处理您的投诉。" + aiResponse;
     }
     
     /**
@@ -142,37 +166,62 @@ public class CustomerServiceAgent extends AbstractAgent {
      */
     private String handleProductConsultation(String message, MCPContext context) {
         context.setCurrentIntent("product_consultation");
-        
+
         // 提取产品相关实体
         String product = extractProductEntity(message);
         if (product != null) {
             context.setEntity("product", product);
         }
-        
-        return chatService.processMessage(message, context.getSessionId(), context.getUserId());
+
+        // 创建聊天请求对象
+        com.example.customerservice.dto.ChatRequest request = new com.example.customerservice.dto.ChatRequest();
+        request.setMessage(message);
+        request.setSessionId(context.getSessionId());
+        request.setUserId(context.getUserId());
+
+        // 调用聊天服务处理
+        com.example.customerservice.dto.ChatResponse response = chatService.processMessage(request);
+        return response.isSuccess() ? response.getMessage() : "处理产品咨询时发生错误";
     }
-    
+
     /**
      * 处理订单查询
      */
     private String handleOrderInquiry(String message, MCPContext context) {
         context.setCurrentIntent("order_inquiry");
-        
+
         // 提取订单号
         String orderNumber = extractOrderNumber(message);
         if (orderNumber != null) {
             context.setEntity("orderNumber", orderNumber);
         }
-        
-        return chatService.processMessage(message, context.getSessionId(), context.getUserId());
+
+        // 创建聊天请求对象
+        com.example.customerservice.dto.ChatRequest request = new com.example.customerservice.dto.ChatRequest();
+        request.setMessage(message);
+        request.setSessionId(context.getSessionId());
+        request.setUserId(context.getUserId());
+
+        // 调用聊天服务处理
+        com.example.customerservice.dto.ChatResponse response = chatService.processMessage(request);
+        return response.isSuccess() ? response.getMessage() : "处理订单查询时发生错误";
     }
-    
+
     /**
      * 处理一般聊天
      */
     private String handleGeneralChat(String message, MCPContext context) {
         context.setCurrentIntent("general_chat");
-        return chatService.processMessage(message, context.getSessionId(), context.getUserId());
+
+        // 创建聊天请求对象
+        com.example.customerservice.dto.ChatRequest request = new com.example.customerservice.dto.ChatRequest();
+        request.setMessage(message);
+        request.setSessionId(context.getSessionId());
+        request.setUserId(context.getUserId());
+
+        // 调用聊天服务处理
+        com.example.customerservice.dto.ChatResponse response = chatService.processMessage(request);
+        return response.isSuccess() ? response.getMessage() : "处理聊天时发生错误";
     }
     
     /**

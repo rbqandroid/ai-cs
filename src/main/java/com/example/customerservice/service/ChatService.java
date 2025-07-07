@@ -118,30 +118,37 @@ public class ChatService {
 
             String aiReply = aiResponse.getResult().getOutput().getText();
 
-            // 保存AI响应
+            // 保存AI响应到数据库
             ChatMessage assistantMessage = new ChatMessage(
                 aiReply,
                 ChatMessage.MessageType.ASSISTANT,
                 "assistant"
             );
 
-            // 暂时设置固定token数量
-            assistantMessage.setTokensUsed(50);
-            
+            // 设置Token使用量（如果AI响应包含使用量信息则使用真实值，否则使用估算值）
+            if (aiResponse.getMetadata() != null && aiResponse.getMetadata().getUsage() != null) {
+                assistantMessage.setTokensUsed(aiResponse.getMetadata().getUsage().getTotalTokens().intValue());
+            } else {
+                // 简单估算：每4个字符约等于1个token
+                assistantMessage.setTokensUsed(aiReply.length() / 4);
+            }
+
+            // 将AI消息添加到会话并保存到数据库
             session.addMessage(assistantMessage);
             messageRepository.save(assistantMessage);
             sessionRepository.save(session);
-            
-            // 构建响应
-            com.example.customerservice.dto.ChatResponse response = 
+
+            // 构建成功响应对象
+            com.example.customerservice.dto.ChatResponse response =
                 com.example.customerservice.dto.ChatResponse.success(
-                    session.getSessionId(), 
-                    aiReply, 
+                    session.getSessionId(),
+                    aiReply,
                     "assistant"
                 );
             response.setTokensUsed(assistantMessage.getTokensUsed());
-            
-            logger.info("成功处理聊天消息，会话ID: {}", session.getSessionId());
+
+            logger.info("成功处理聊天消息，会话ID: {}, Token使用量: {}",
+                       session.getSessionId(), assistantMessage.getTokensUsed());
             return response;
             
         } catch (Exception e) {

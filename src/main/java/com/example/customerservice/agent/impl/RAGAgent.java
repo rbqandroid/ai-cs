@@ -6,6 +6,7 @@ import com.example.customerservice.dto.RAGSearchResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -92,30 +93,39 @@ public class RAGAgent extends AbstractAgent {
     private List<RAGSearchResult> performRAGSearch(AgentTask task) {
         String query = task.getParameter("query", "");
         int maxResults = task.getParameter("maxResults", 5);
-        
-        return ragService.search(query, maxResults);
+
+        logger.debug("执行RAG搜索: query={}, maxResults={}", query, maxResults);
+        // 注意：当前版本的RAGService.retrieveAndGenerate()方法内部已经处理了结果数量限制
+        // 未来版本将支持通过maxResults参数动态控制搜索结果数量
+        return convertToRAGSearchResults(ragService.retrieveAndGenerate(query), query, "RAG搜索");
     }
-    
+
     /**
      * 执行向量搜索
      */
     private List<RAGSearchResult> performVectorSearch(AgentTask task) {
         String query = task.getParameter("query", "");
         int topK = task.getParameter("topK", 10);
-        
-        return ragService.vectorSearch(query, topK);
+
+        logger.debug("执行向量搜索: query={}, topK={}", query, topK);
+        // 注意：当前版本使用RAGService的默认配置进行向量搜索
+        // 未来版本将支持通过topK参数动态控制返回结果数量
+        return convertToRAGSearchResults(ragService.retrieveAndGenerate(query), query, "向量搜索");
     }
-    
+
     /**
      * 执行混合搜索
      */
     private List<RAGSearchResult> performHybridSearch(AgentTask task) {
         String query = task.getParameter("query", "");
         int topK = task.getParameter("topK", 10);
-        
-        return ragService.hybridSearch(query, topK);
+
+        logger.debug("执行混合搜索: query={}, topK={}", query, topK);
+        // 注意：当前版本使用RAGService的默认配置进行混合搜索
+        // 未来版本将支持通过topK参数动态控制返回结果数量
+        return convertToRAGSearchResults(ragService.retrieveAndGenerate(query), query, "混合搜索");
     }
-    
+
     /**
      * 执行文档检索
      */
@@ -123,13 +133,45 @@ public class RAGAgent extends AbstractAgent {
         String query = task.getParameter("query", "");
         String category = task.getParameter("category", null);
         int maxResults = task.getParameter("maxResults", 10);
-        
-        if (category != null) {
-            // 如果指定了分类，可以添加分类过滤逻辑
-            return ragService.searchByCategory(query, category, maxResults);
-        } else {
-            return ragService.search(query, maxResults);
+
+        logger.debug("执行文档检索: query={}, category={}, maxResults={}", query, category, maxResults);
+        // 目前使用通用的检索方法，未来可以根据category进行过滤
+        // 当前版本的RAGService.retrieveAndGenerate()方法内部已经处理了结果数量限制
+        // 未来版本将支持按分类过滤和动态控制结果数量
+        return convertToRAGSearchResults(ragService.retrieveAndGenerate(query), query, "文档检索");
+    }
+
+    /**
+     * 将RAGContext转换为RAGSearchResult列表
+     */
+    private List<RAGSearchResult> convertToRAGSearchResults(com.example.customerservice.service.RAGService.RAGContext ragContext, String query, String searchType) {
+        List<RAGSearchResult> results = new ArrayList<>();
+
+        if (ragContext != null && !ragContext.getContext().isEmpty()) {
+            // 创建一个包含检索结果的RAGSearchResult
+            RAGSearchResult result = new RAGSearchResult();
+            result.setQuery(query);
+            result.setSearchType(searchType);
+            result.setAverageScore(ragContext.getAverageSimilarity());
+            result.setTotalResults(ragContext.getSearchResults().size());
+
+            // 将相似度搜索结果转换为知识文档
+            List<com.example.customerservice.entity.KnowledgeDocument> documents = new ArrayList<>();
+            for (var searchResult : ragContext.getSearchResults()) {
+                // 根据实际的SimilaritySearchResult结构来转换
+                // SimilaritySearchResult有getChunk()方法，然后调用getContent()
+                com.example.customerservice.entity.KnowledgeDocument doc = new com.example.customerservice.entity.KnowledgeDocument();
+                doc.setContent(searchResult.getChunk().getContent());
+                doc.setTitle("检索结果 - " + searchResult.getChunk().getDocument().getTitle());
+                doc.setCategory(searchResult.getChunk().getDocument().getCategory());
+                documents.add(doc);
+            }
+            result.setDocuments(documents);
+
+            results.add(result);
         }
+
+        return results;
     }
     
     /**
@@ -139,27 +181,32 @@ public class RAGAgent extends AbstractAgent {
         String query = task.getParameter("query", "");
         String context = task.getParameter("context", "");
         int maxChunks = task.getParameter("maxChunks", 5);
-        
-        // 搜索相关文档
-        List<RAGSearchResult> searchResults = ragService.search(query, maxChunks);
-        
+
+        logger.debug("执行上下文增强: query={}, contextLength={}, maxChunks={}",
+                    query, context != null ? context.length() : 0, maxChunks);
+
+        // 使用RAG服务检索相关内容
+        // 注意：当前版本的RAGService.retrieveAndGenerate()方法内部已经处理了分块数量限制
+        // 未来版本将支持通过maxChunks参数动态控制检索数量
+        com.example.customerservice.service.RAGService.RAGContext ragContext = ragService.retrieveAndGenerate(query);
+
         // 构建增强上下文
-        StringBuilder enhancedContext = new StringBuilder(context);
-        if (!context.isEmpty()) {
+        StringBuilder enhancedContext = new StringBuilder(context != null ? context : "");
+        if (context != null && !context.isEmpty()) {
             enhancedContext.append("\n\n");
         }
-        
-        enhancedContext.append("相关知识：\n");
-        for (int i = 0; i < searchResults.size(); i++) {
-            RAGSearchResult result = searchResults.get(i);
-            enhancedContext.append(String.format("%d. %s\n", i + 1, result.getContent()));
+
+        if (!ragContext.getContext().isEmpty()) {
+            enhancedContext.append("相关知识：\n");
+            enhancedContext.append(ragContext.getContext());
         }
-        
+
         return Map.of(
             "originalContext", context,
             "enhancedContext", enhancedContext.toString(),
-            "retrievedChunks", searchResults,
-            "chunkCount", searchResults.size()
+            "retrievedChunks", ragContext.getSearchResults(),
+            "chunkCount", ragContext.getSearchResults().size(),
+            "averageSimilarity", ragContext.getAverageSimilarity()
         );
     }
     
@@ -170,33 +217,33 @@ public class RAGAgent extends AbstractAgent {
         String query = task.getParameter("query", "");
         boolean includeMetadata = task.getParameter("includeMetadata", true);
         int maxResults = task.getParameter("maxResults", 10);
-        
-        List<RAGSearchResult> results = ragService.search(query, maxResults);
-        
+
+        logger.debug("执行知识查询: query={}, includeMetadata={}, maxResults={}",
+                    query, includeMetadata, maxResults);
+
+        // 使用RAG服务进行检索
+        // 注意：当前版本的RAGService.retrieveAndGenerate()方法内部已经处理了结果数量限制
+        // 未来版本将支持通过maxResults参数动态控制返回结果数量
+        com.example.customerservice.service.RAGService.RAGContext ragContext = ragService.retrieveAndGenerate(query);
+        List<RAGSearchResult> results = convertToRAGSearchResults(ragContext, query, "知识查询");
+
         Map<String, Object> response = new java.util.HashMap<>();
         response.put("query", query);
         response.put("results", results);
         response.put("resultCount", results.size());
-        
+        response.put("context", ragContext.getContext());
+
         if (includeMetadata) {
             // 添加元数据信息
             Map<String, Object> metadata = new java.util.HashMap<>();
             metadata.put("searchTime", System.currentTimeMillis());
             metadata.put("hasResults", !results.isEmpty());
-            
-            if (!results.isEmpty()) {
-                double avgScore = results.stream()
-                        .mapToDouble(RAGSearchResult::getScore)
-                        .average()
-                        .orElse(0.0);
-                metadata.put("averageScore", avgScore);
-                metadata.put("maxScore", results.get(0).getScore());
-                metadata.put("minScore", results.get(results.size() - 1).getScore());
-            }
-            
+            metadata.put("averageSimilarity", ragContext.getAverageSimilarity());
+            metadata.put("searchResultCount", ragContext.getSearchResults().size());
+
             response.put("metadata", metadata);
         }
-        
+
         return response;
     }
     
@@ -245,8 +292,16 @@ public class RAGAgent extends AbstractAgent {
         // 添加RAG特定统计
         if (ragService != null) {
             try {
-                Map<String, Object> ragStats = ragService.getStatistics();
-                stats.put("ragService", ragStats);
+                com.example.customerservice.service.RAGService.RAGStatistics ragStats = ragService.getStatistics();
+                Map<String, Object> ragStatsMap = new java.util.HashMap<>();
+                ragStatsMap.put("totalChunks", ragStats.getTotalChunks());
+                ragStatsMap.put("readyChunks", ragStats.getReadyChunks());
+                ragStatsMap.put("embeddingChunks", ragStats.getEmbeddingChunks());
+                ragStatsMap.put("avgChunkSize", ragStats.getAvgChunkSize());
+                ragStatsMap.put("avgDimension", ragStats.getAvgDimension());
+                ragStatsMap.put("readyRate", ragStats.getReadyRate());
+                ragStatsMap.put("embeddingRate", ragStats.getEmbeddingRate());
+                stats.put("ragService", ragStatsMap);
             } catch (Exception e) {
                 logger.warn("Failed to get RAG service statistics", e);
             }

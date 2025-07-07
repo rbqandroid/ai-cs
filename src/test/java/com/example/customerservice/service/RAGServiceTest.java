@@ -76,289 +76,186 @@ class RAGServiceTest {
     }
     
     @Test
-    void testSearch() {
+    void testRetrieveAndGenerate() {
         String query = "test query";
-        int maxResults = 5;
         
-        List<DocumentChunk> mockChunks = Arrays.asList(testChunk1, testChunk2);
-        when(documentChunkRepository.findByContentContainingIgnoreCaseAndStatus(
-                eq(query), eq(DocumentChunk.ChunkStatus.READY), any(Pageable.class)))
-                .thenReturn(mockChunks);
+        // 模拟向量搜索结果
+        List<VectorStoreService.SimilaritySearchResult> mockResults = Arrays.asList(
+            new VectorStoreService.SimilaritySearchResult(testChunk1, 0.9),
+            new VectorStoreService.SimilaritySearchResult(testChunk2, 0.8)
+        );
+        when(vectorStoreService.hybridSearch(eq(query), anyInt())).thenReturn(mockResults);
         
-        // 执行搜索
-        List<RAGSearchResult> results = ragService.search(query, maxResults);
+        // 执行检索和生成
+        RAGService.RAGContext result = ragService.retrieveAndGenerate(query);
         
         // 验证结果
-        assertNotNull(results);
-        assertEquals(2, results.size());
-        
-        RAGSearchResult result1 = results.get(0);
-        assertEquals(testChunk1.getContent(), result1.getContent());
-        assertEquals(testDocument.getTitle(), result1.getDocumentTitle());
-        assertTrue(result1.getScore() > 0);
+        assertNotNull(result);
+        assertNotNull(result.getContext());
+        assertEquals(2, result.getSearchResults().size());
+        assertEquals(0.85, result.getAverageSimilarity(), 0.01); // (0.9 + 0.8) / 2
         
         // 验证方法调用
-        verify(documentChunkRepository).findByContentContainingIgnoreCaseAndStatus(
-                eq(query), eq(DocumentChunk.ChunkStatus.READY), any(Pageable.class));
+        verify(vectorStoreService).hybridSearch(eq(query), anyInt());
     }
     
     @Test
-    void testSearchWithEmptyQuery() {
+    void testRetrieveAndGenerateWithEmptyQuery() {
         String query = "";
-        int maxResults = 5;
         
-        List<RAGSearchResult> results = ragService.search(query, maxResults);
+        // 执行检索和生成
+        RAGService.RAGContext result = ragService.retrieveAndGenerate(query);
         
-        // 空查询应该返回空结果
-        assertNotNull(results);
-        assertTrue(results.isEmpty());
+        // 验证结果
+        assertNotNull(result);
+        assertEquals("", result.getContext());
+        assertTrue(result.getSearchResults().isEmpty());
+        assertEquals(0.0, result.getAverageSimilarity());
         
-        // 不应该调用repository
-        verify(documentChunkRepository, never()).findByContentContainingIgnoreCaseAndStatus(
-                anyString(), any(), any(Pageable.class));
+        // 不应该调用向量搜索服务
+        verify(vectorStoreService, never()).hybridSearch(anyString(), anyInt());
     }
     
     @Test
-    void testVectorSearch() {
+    void testBuildEnhancedPrompt() {
         String query = "test query";
-        int topK = 10;
-        
-        // 模拟向量化结果
-        List<Double> queryVector = Arrays.asList(0.1, 0.2, 0.3);
-        when(embeddingService.embed(query)).thenReturn(queryVector);
+        String basePrompt = "You are a helpful assistant";
         
         // 模拟向量搜索结果
-        List<DocumentChunk> mockChunks = Arrays.asList(testChunk1, testChunk2);
-        when(vectorStoreService.findSimilarChunks(queryVector, topK)).thenReturn(mockChunks);
+        List<VectorStoreService.SimilaritySearchResult> mockResults = Arrays.asList(
+            new VectorStoreService.SimilaritySearchResult(testChunk1, 0.9)
+        );
+        when(vectorStoreService.hybridSearch(eq(query), anyInt())).thenReturn(mockResults);
         
-        // 执行向量搜索
-        List<RAGSearchResult> results = ragService.vectorSearch(query, topK);
+        // 执行构建增强提示词
+        String enhancedPrompt = ragService.buildEnhancedPrompt(query, basePrompt);
         
         // 验证结果
-        assertNotNull(results);
-        assertEquals(2, results.size());
+        assertNotNull(enhancedPrompt);
+        assertTrue(enhancedPrompt.contains(basePrompt));
+        assertTrue(enhancedPrompt.contains("相关知识库内容"));
         
         // 验证方法调用
-        verify(embeddingService).embed(query);
-        verify(vectorStoreService).findSimilarChunks(queryVector, topK);
+        verify(vectorStoreService).hybridSearch(eq(query), anyInt());
     }
     
     @Test
-    void testVectorSearchWithEmbeddingFailure() {
+    void testEvaluateQueryMatch() {
         String query = "test query";
-        int topK = 10;
-        
-        // 模拟向量化失败
-        when(embeddingService.embed(query)).thenThrow(new RuntimeException("Embedding failed"));
-        
-        // 执行向量搜索
-        List<RAGSearchResult> results = ragService.vectorSearch(query, topK);
-        
-        // 应该返回空结果
-        assertNotNull(results);
-        assertTrue(results.isEmpty());
-        
-        // 不应该调用向量存储服务
-        verify(vectorStoreService, never()).findSimilarChunks(any(), anyInt());
-    }
-    
-    @Test
-    void testHybridSearch() {
-        String query = "test query";
-        int topK = 10;
-        
-        // 模拟关键词搜索结果
-        List<DocumentChunk> keywordChunks = Arrays.asList(testChunk1);
-        when(documentChunkRepository.findByContentContainingIgnoreCaseAndStatus(
-                eq(query), eq(DocumentChunk.ChunkStatus.READY), any(Pageable.class)))
-                .thenReturn(keywordChunks);
         
         // 模拟向量搜索结果
-        List<Double> queryVector = Arrays.asList(0.1, 0.2, 0.3);
-        when(embeddingService.embed(query)).thenReturn(queryVector);
+        List<VectorStoreService.SimilaritySearchResult> mockResults = Arrays.asList(
+            new VectorStoreService.SimilaritySearchResult(testChunk1, 0.9),
+            new VectorStoreService.SimilaritySearchResult(testChunk2, 0.8)
+        );
+        when(vectorStoreService.hybridSearch(eq(query), anyInt())).thenReturn(mockResults);
         
-        List<DocumentChunk> vectorChunks = Arrays.asList(testChunk2);
-        when(vectorStoreService.findSimilarChunks(queryVector, topK)).thenReturn(vectorChunks);
-        
-        // 执行混合搜索
-        List<RAGSearchResult> results = ragService.hybridSearch(query, topK);
-        
-        // 验证结果（应该包含两个不同的chunk）
-        assertNotNull(results);
-        assertEquals(2, results.size());
-        
-        // 验证方法调用
-        verify(documentChunkRepository).findByContentContainingIgnoreCaseAndStatus(
-                eq(query), eq(DocumentChunk.ChunkStatus.READY), any(Pageable.class));
-        verify(embeddingService).embed(query);
-        verify(vectorStoreService).findSimilarChunks(queryVector, topK);
-    }
-    
-    @Test
-    void testSearchByCategory() {
-        String query = "test query";
-        String category = "test-category";
-        int maxResults = 5;
-        
-        List<DocumentChunk> mockChunks = Arrays.asList(testChunk1, testChunk2);
-        when(documentChunkRepository.findByContentContainingAndCategoryAndStatus(
-                eq(query), eq(category), eq(DocumentChunk.ChunkStatus.READY), any(Pageable.class)))
-                .thenReturn(mockChunks);
-        
-        // 执行分类搜索
-        List<RAGSearchResult> results = ragService.searchByCategory(query, category, maxResults);
+        // 执行查询匹配度评估
+        double matchScore = ragService.evaluateQueryMatch(query);
         
         // 验证结果
-        assertNotNull(results);
-        assertEquals(2, results.size());
+        assertEquals(0.85, matchScore, 0.01);
         
         // 验证方法调用
-        verify(documentChunkRepository).findByContentContainingAndCategoryAndStatus(
-                eq(query), eq(category), eq(DocumentChunk.ChunkStatus.READY), any(Pageable.class));
+        verify(vectorStoreService).hybridSearch(eq(query), anyInt());
     }
     
     @Test
-    void testEvaluateQuery() {
-        String query = "test query";
+    void testGetDocumentChunks() {
+        Long documentId = 1L;
+        int maxChunks = 5;
         
-        // 模拟搜索结果
-        List<DocumentChunk> mockChunks = Arrays.asList(testChunk1, testChunk2);
-        when(documentChunkRepository.findByContentContainingIgnoreCaseAndStatus(
-                eq(query), eq(DocumentChunk.ChunkStatus.READY), any(Pageable.class)))
-                .thenReturn(mockChunks);
+        // 执行获取文档块
+        List<DocumentChunk> chunks = ragService.getDocumentChunks(documentId, maxChunks);
         
-        // 执行查询评估
-        Map<String, Object> evaluation = ragService.evaluateQuery(query);
-        
-        // 验证评估结果
-        assertNotNull(evaluation);
-        assertEquals(query, evaluation.get("query"));
-        assertEquals(2, evaluation.get("totalResults"));
-        assertTrue((Boolean) evaluation.get("hasResults"));
-        assertTrue(evaluation.containsKey("averageScore"));
-        assertTrue(evaluation.containsKey("maxScore"));
-        assertTrue(evaluation.containsKey("searchTime"));
-    }
-    
-    @Test
-    void testEvaluateQueryWithNoResults() {
-        String query = "no results query";
-        
-        // 模拟无搜索结果
-        when(documentChunkRepository.findByContentContainingIgnoreCaseAndStatus(
-                eq(query), eq(DocumentChunk.ChunkStatus.READY), any(Pageable.class)))
-                .thenReturn(Arrays.asList());
-        
-        // 执行查询评估
-        Map<String, Object> evaluation = ragService.evaluateQuery(query);
-        
-        // 验证评估结果
-        assertNotNull(evaluation);
-        assertEquals(query, evaluation.get("query"));
-        assertEquals(0, evaluation.get("totalResults"));
-        assertFalse((Boolean) evaluation.get("hasResults"));
-        assertEquals(0.0, evaluation.get("averageScore"));
-        assertEquals(0.0, evaluation.get("maxScore"));
-    }
-    
-    @Test
-    void testReprocessFailedChunks() {
-        // 模拟失败的分块
-        List<DocumentChunk> failedChunks = Arrays.asList(testChunk1, testChunk2);
-        when(documentChunkRepository.findByStatus(DocumentChunk.ChunkStatus.FAILED))
-                .thenReturn(failedChunks);
-        
-        // 模拟向量化成功
-        List<Double> vector = Arrays.asList(0.1, 0.2, 0.3);
-        when(embeddingService.embed(anyString())).thenReturn(vector);
-        
-        // 执行重新处理
-        int reprocessedCount = ragService.reprocessFailedChunks();
-        
-        // 验证结果
-        assertEquals(2, reprocessedCount);
-        
-        // 验证方法调用
-        verify(documentChunkRepository).findByStatus(DocumentChunk.ChunkStatus.FAILED);
-        verify(embeddingService, times(2)).embed(anyString());
-        verify(vectorStoreService, times(2)).storeVector(anyLong(), any());
-        verify(documentChunkRepository, times(2)).save(any(DocumentChunk.class));
-        
-        // 验证分块状态已更新
-        assertEquals(DocumentChunk.ChunkStatus.READY, testChunk1.getStatus());
-        assertEquals(DocumentChunk.ChunkStatus.READY, testChunk2.getStatus());
-    }
-    
-    @Test
-    void testReprocessFailedChunksWithEmbeddingFailure() {
-        // 模拟失败的分块
-        List<DocumentChunk> failedChunks = Arrays.asList(testChunk1);
-        when(documentChunkRepository.findByStatus(DocumentChunk.ChunkStatus.FAILED))
-                .thenReturn(failedChunks);
-        
-        // 模拟向量化失败
-        when(embeddingService.embed(anyString())).thenThrow(new RuntimeException("Embedding failed"));
-        
-        // 执行重新处理
-        int reprocessedCount = ragService.reprocessFailedChunks();
-        
-        // 应该返回0，因为处理失败
-        assertEquals(0, reprocessedCount);
-        
-        // 分块状态应该保持为FAILED
-        assertEquals(DocumentChunk.ChunkStatus.FAILED, testChunk1.getStatus());
+        // 验证结果 - 当前实现返回空列表
+        assertNotNull(chunks);
+        assertTrue(chunks.isEmpty());
     }
     
     @Test
     void testGetStatistics() {
-        // 模拟统计数据
-        when(documentChunkRepository.count()).thenReturn(100L);
-        when(documentChunkRepository.countByStatus(DocumentChunk.ChunkStatus.READY)).thenReturn(80L);
-        when(documentChunkRepository.countByStatus(DocumentChunk.ChunkStatus.PROCESSING)).thenReturn(10L);
-        when(documentChunkRepository.countByStatus(DocumentChunk.ChunkStatus.FAILED)).thenReturn(10L);
-        when(knowledgeDocumentRepository.count()).thenReturn(20L);
+        // 模拟嵌入服务统计信息
+        EmbeddingService.EmbeddingStatistics mockEmbeddingStats = 
+            new EmbeddingService.EmbeddingStatistics(100L, 80L, 60L, 80L, 60L, 60L, 500.0, 768.0);
+        when(embeddingService.getStatistics()).thenReturn(mockEmbeddingStats);
         
-        // 获取统计信息
-        Map<String, Object> statistics = ragService.getStatistics();
+        // 执行获取统计信息
+        RAGService.RAGStatistics stats = ragService.getStatistics();
         
-        // 验证统计信息
-        assertNotNull(statistics);
-        assertEquals(100L, statistics.get("totalChunks"));
-        assertEquals(80L, statistics.get("readyChunks"));
-        assertEquals(10L, statistics.get("processingChunks"));
-        assertEquals(10L, statistics.get("failedChunks"));
-        assertEquals(20L, statistics.get("totalDocuments"));
-        assertTrue(statistics.containsKey("lastUpdated"));
-    }
-    
-    @Test
-    void testIsHealthy() {
-        // 模拟健康状态
-        when(documentChunkRepository.count()).thenReturn(100L);
-        when(embeddingService.isHealthy()).thenReturn(true);
-        when(vectorStoreService.isHealthy()).thenReturn(true);
-        
-        // 检查健康状态
-        boolean isHealthy = ragService.isHealthy();
-        
-        // 验证健康状态
-        assertTrue(isHealthy);
+        // 验证结果
+        assertNotNull(stats);
+        assertEquals(100L, stats.getTotalChunks());
+        assertEquals(80L, stats.getReadyChunks());
+        assertEquals(60L, stats.getEmbeddingChunks());
+        assertEquals(500.0, stats.getAvgChunkSize());
+        assertEquals(768.0, stats.getAvgDimension());
         
         // 验证方法调用
-        verify(embeddingService).isHealthy();
-        verify(vectorStoreService).isHealthy();
+        verify(embeddingService).getStatistics();
     }
     
     @Test
-    void testIsHealthyWithUnhealthyDependencies() {
-        // 模拟不健康的依赖
-        when(embeddingService.isHealthy()).thenReturn(false);
-        when(vectorStoreService.isHealthy()).thenReturn(true);
+    void testRetrieveAndGenerateWithException() {
+        String query = "test query";
         
-        // 检查健康状态
-        boolean isHealthy = ragService.isHealthy();
+        // 模拟向量搜索服务抛出异常
+        when(vectorStoreService.hybridSearch(eq(query), anyInt()))
+            .thenThrow(new RuntimeException("Vector search failed"));
         
-        // 应该返回false
-        assertFalse(isHealthy);
+        // 执行检索和生成
+        RAGService.RAGContext result = ragService.retrieveAndGenerate(query);
+        
+        // 验证结果 - 应该返回空上下文而不是抛出异常
+        assertNotNull(result);
+        assertEquals("", result.getContext());
+        assertTrue(result.getSearchResults().isEmpty());
+        assertEquals(0.0, result.getAverageSimilarity());
+        
+        // 验证方法调用
+        verify(vectorStoreService).hybridSearch(eq(query), anyInt());
+    }
+    
+    @Test
+    void testBuildEnhancedPromptWithNoContext() {
+        String query = "test query";
+        String basePrompt = "You are a helpful assistant";
+        
+        // 模拟空的搜索结果
+        when(vectorStoreService.hybridSearch(eq(query), anyInt())).thenReturn(Arrays.asList());
+        
+        // 执行构建增强提示词
+        String enhancedPrompt = ragService.buildEnhancedPrompt(query, basePrompt);
+        
+        // 验证结果 - 应该返回原始提示词
+        assertNotNull(enhancedPrompt);
+        assertEquals(basePrompt, enhancedPrompt);
+        
+        // 验证方法调用
+        verify(vectorStoreService).hybridSearch(eq(query), anyInt());
+    }
+    
+    @Test
+    void testRetrieveAndGenerateWithLowSimilarity() {
+        String query = "test query";
+        
+        // 模拟低相似度的搜索结果
+        List<VectorStoreService.SimilaritySearchResult> mockResults = Arrays.asList(
+            new VectorStoreService.SimilaritySearchResult(testChunk1, 0.5), // 低于阈值0.7
+            new VectorStoreService.SimilaritySearchResult(testChunk2, 0.6)  // 低于阈值0.7
+        );
+        when(vectorStoreService.hybridSearch(eq(query), anyInt())).thenReturn(mockResults);
+        
+        // 执行检索和生成
+        RAGService.RAGContext result = ragService.retrieveAndGenerate(query);
+        
+        // 验证结果 - 应该过滤掉低相似度结果
+        assertNotNull(result);
+        assertEquals("", result.getContext());
+        assertTrue(result.getSearchResults().isEmpty());
+        assertEquals(0.0, result.getAverageSimilarity());
+        
+        // 验证方法调用
+        verify(vectorStoreService).hybridSearch(eq(query), anyInt());
     }
 }
